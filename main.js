@@ -1,15 +1,6 @@
-const {program} = require('commander');
 const http = require('http');
 const fs = require('fs').promises;
-const path = require('path');
-
-const cacheDir = './cache';
-
-fs.mkdir(cacheDir, { recursive: true }).catch(err => console.error(`Error creating cache directory: ${err}`));
-
-
-
-const getImage = (resCode) => './cache/' + resCode + '.jpg';
+const { program } = require('commander');
 
 program
     .requiredOption('-h, --host <host>', 'host')
@@ -17,49 +8,80 @@ program
     .requiredOption('-c, --cache <cache>', 'cache directory')
     .parse(process.argv);
 
-const {host, port, cache} = program.opts();
+const { host, port, cache } = program.opts();
 
-if(!host || !port || !cache) {
+if (!host || !port || !cache) {
     console.error('Please provide all required options');
     process.exit(1);
 }
 
+const getImage = (resCode) => `${cache}/${resCode}.jpg`;
+
 const server = http.createServer(async (req, res) => {
     const resCode = req.url.split('/').pop();
     const imagePath = getImage(resCode);
+    let body = [];
 
-    switch (req.method) {
-        case 'GET':
-            console.log(`GET request for ${resCode}`);
-            try {
-                const data = await fs.readFile(imagePath);
-                res.writeHead(200, { 'Content-Type': 'image/png' });
-                res.end(data);
-            } catch (err) {
-                res.writeHead(404, { 'Content-Type': 'text/plain' });
-                res.end('Not Found');
-            }
-            break;
-        case 'DELETE':
-            console.log(`DELETE request for ${resCode}`);
-            try {
-                await fs.unlink(imagePath);
-                res.writeHead(204, { 'Content-Type': 'text/plain' });
-                res.end('No Content');
-            } catch (err) {
-                res.writeHead(404, { 'Content-Type': 'text/plain' });
-                res.end('Not Found');
-            }
-            break;
-        default:
-            res.writeHead(405, { 'Content-Type': 'text/plain' });
-            res.end('Method Not Allowed');
-            break;
-    }
+    req.on('data', chunk => {
+        body.push(chunk);
+    });
 
-    res.end('');
+    req.on('end', async () => {
+        body = Buffer.concat(body);
+
+        switch (req.method) {
+            case 'GET':
+                console.log(`GET request for ${resCode}`);
+                try {
+                    const data = await fs.readFile(imagePath);
+                    res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+                    res.end(data);
+                } catch (err) {
+                    if (!res.headersSent) {
+                        res.writeHead(404, { 'Content-Type': 'text/plain' });
+                        res.end('Not Found');
+                    }
+                }
+                break;
+            case 'PUT':
+                console.log(`PUT request for ${resCode}`);
+                try {
+                    await fs.writeFile(imagePath, body);
+                    if (!res.headersSent) {
+                        res.writeHead(201);
+                        res.end();
+                    }
+                } catch (err) {
+                    if (!res.headersSent) {
+                        res.writeHead(500, { 'Content-Type': 'text/plain' });
+                        res.end('Error saving the image. err: ' + err);
+                    }
+                }
+                break;
+            case 'DELETE':
+                console.log(`DELETE request for ${resCode}`);
+                try {
+                    await fs.unlink(imagePath);
+                    if (!res.headersSent) {
+                        res.writeHead(200);
+                        res.end();
+                    }
+                } catch (err) {
+                    if (!res.headersSent) {
+                        res.writeHead(404, { 'Content-Type': 'text/plain' });
+                        res.end('Not Found');
+                    }
+                }
+                break;
+            default:
+                if (!res.headersSent) {
+                    res.writeHead(405, { 'Content-Type': 'text/plain' });
+                    res.end('Method Not Allowed');
+                }
+                break;
+        }
+    });
 });
-
 
 server.listen(port, host, () => {
     console.log(`Server is running at http://${host}:${port}`);
