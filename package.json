@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "commander": "^12.1.0",
+    "nodemon": "^3.1.7",
+    "package": "^1.0.1",
+    "superagent": "^10.1.0"
+  }
+}
