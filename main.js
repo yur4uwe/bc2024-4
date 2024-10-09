@@ -31,11 +31,21 @@ const server = http.createServer(async (req, res) => {
     switch (req.method) {
         case 'GET':
             console.log(`GET request for ${resCode}`);
-            console.log(`Image path: ${imagePath}`);
             try {
                 const data = await fs.readFile(imagePath);
                 res.writeHead(200, { 'Content-Type': 'image/png' });
                 res.end(data);
+            } catch (err) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Not Found');
+            }
+            break;
+        case 'DELETE':
+            console.log(`DELETE request for ${resCode}`);
+            try {
+                await fs.unlink(imagePath);
+                res.writeHead(204, { 'Content-Type': 'text/plain' });
+                res.end('No Content');
             } catch (err) {
                 res.writeHead(404, { 'Content-Type': 'text/plain' });
                 res.end('Not Found');
