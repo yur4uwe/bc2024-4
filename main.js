@@ -1,7 +1,15 @@
 const {program} = require('commander');
 const http = require('http');
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
+
+const cacheDir = './cache';
+
+fs.mkdir(cacheDir, { recursive: true }).catch(err => console.error(`Error creating cache directory: ${err}`));
+
+
+
+const getImage = (resCode) => './cache/' + resCode + '.jpg';
 
 program
     .requiredOption('-h, --host <host>', 'host')
@@ -16,11 +24,32 @@ if(!host || !port || !cache) {
     process.exit(1);
 }
 
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    fs.writeFile(path.join(cache, 'log.txt'), `${new Date().toISOString()} - ${req.url}\n`, { flag: 'a' });
-    res.end('Hello World\n');
+const server = http.createServer(async (req, res) => {
+    const resCode = req.url.split('/').pop();
+    const imagePath = getImage(resCode);
+
+    switch (req.method) {
+        case 'GET':
+            console.log(`GET request for ${resCode}`);
+            console.log(`Image path: ${imagePath}`);
+            try {
+                const data = await fs.readFile(imagePath);
+                res.writeHead(200, { 'Content-Type': 'image/png' });
+                res.end(data);
+            } catch (err) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Not Found');
+            }
+            break;
+        default:
+            res.writeHead(405, { 'Content-Type': 'text/plain' });
+            res.end('Method Not Allowed');
+            break;
+    }
+
+    res.end('');
 });
+
 
 server.listen(port, host, () => {
     console.log(`Server is running at http://${host}:${port}`);
