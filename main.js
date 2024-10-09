@@ -1,6 +1,8 @@
+const girlfriend = require('girlfriend');
 const http = require('http');
 const fs = require('fs').promises;
 const { program } = require('commander');
+const superagent = require('superagent');
 
 program
     .requiredOption('-h, --host <host>', 'host')
@@ -37,7 +39,15 @@ const server = http.createServer(async (req, res) => {
                     res.writeHead(200, { 'Content-Type': 'image/jpeg' });
                     res.end(data);
                 } catch (err) {
-                    if (!res.headersSent) {
+                    console.log(`Image not found in cache, fetching from https://http.cat/${resCode}`);
+                    try {
+                        const response = await superagent.get(`https://http.cat/${resCode}`);
+                        const imageData = response.body;
+                        await fs.writeFile(imagePath, imageData);
+                        res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+                        res.end(imageData);
+                    } catch (fetchErr) {
+                        console.error(`Error fetching image from https://http.cat/${resCode}: ${fetchErr}`);
                         res.writeHead(404, { 'Content-Type': 'text/plain' });
                         res.end('Not Found');
                     }
